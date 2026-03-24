@@ -1,0 +1,33 @@
+/* Card chung cho thông tin sự kiện */
+.card {
+  background-color: #fff;
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.card-header {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.card-body {
+  padding-top: 10px;
+  font-size: 1rem;
+}
+
+.card-footer {
+  text-align: right;
+}
+
+.card .btn {
+  background-color: var(--primary-color);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: var(--border-radius);
+}
+
+.card .btn:hover {
+  background-color: #0056b3;
+}

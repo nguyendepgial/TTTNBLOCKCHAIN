@@ -1,0 +1,41 @@
+/* Style cho các form */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+input,
+select,
+textarea {
+  padding: 10px;
+  font-size: 1rem;
+  border: 1px solid #ddd;
+  border-radius: var(--border-radius);
+  width: 100%;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+label {
+  font-weight: bold;
+}
+
+input[type="submit"] {
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--border-radius);
+  padding: 12px;
+  transition: background-color 0.3s;
+}
+
+input[type="submit"]:hover {
+  background-color: #0056b3;
+}
