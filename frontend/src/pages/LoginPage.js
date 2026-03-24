@@ -8,11 +8,13 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(""); // Thêm message cho thông báo thành công
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setMessage(""); // Reset message
 
     try {
       const response = await fetch("http://localhost:5000/api/users/login", {
@@ -28,7 +30,12 @@ function LoginPage() {
       if (data.success) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
-        navigate("/home");
+        setMessage("Đăng nhập thành công!");
+
+        // Chuyển hướng sau 1-2 giây
+        setTimeout(() => {
+          navigate("/home");
+        }, 1500); // Đợi 1.5 giây trước khi chuyển trang
       } else {
         setError(data.message);
       }
@@ -42,11 +49,12 @@ function LoginPage() {
   return (
     <Container fluid className="d-flex justify-content-center align-items-center" style={{ minHeight: "100vh" }}>
       <Row className="w-100">
-        <Col sm={6} md={4}>
+        <Col sm={6} md={4} className="mx-auto">
           <Card className="p-4">
             <Card.Body>
               <h3 className="text-center">Đăng nhập</h3>
               {error && <Alert variant="danger">{error}</Alert>}
+              {message && <Alert variant="success">{message}</Alert>} {/* Hiển thị thông báo thành công */}
               <Form onSubmit={handleLogin}>
                 <Form.Group className="mb-3">
                   <Form.Label>Email</Form.Label>

@@ -1,6 +1,5 @@
-// src/components/AppNavbar.js
 import React from "react";
-import { Navbar, Nav, Button, Container } from "react-bootstrap";
+import { Navbar, Nav, Button } from "react-bootstrap";
 import { Link, useNavigate } from "react-router-dom";
 
 function AppNavbar() {
@@ -10,29 +9,30 @@ function AppNavbar() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    navigate("/login");
+    navigate("/login"); // Sau khi logout, chuyển về trang đăng nhập
   };
 
   return (
-    <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
-      <Container>
-        <Navbar.Brand as={Link} to="/">
+    <Navbar bg="dark" variant="dark" expand="lg" className="navbar fixed-top">
+      <div className="w-100">
+        <Navbar.Brand as={Link} to="/" className="navbar-brand">
           Concert Ticket
         </Navbar.Brand>
-        <Nav className="ms-auto">
-          {!user ? (
+        <Nav className="navbar-nav">
+          {user ? (
             <>
-              <Nav.Link as={Link} to="/login">Đăng nhập</Nav.Link>
-              <Nav.Link as={Link} to="/register">Đăng ký</Nav.Link>
+              <Nav.Link as={Link} to="/home" className="nav-link">Trang chủ</Nav.Link>
+              <Nav.Link as={Link} to="/events" className="nav-link">Sự kiện</Nav.Link>
+              <Button variant="outline-light" onClick={handleLogout}>Đăng xuất</Button>
             </>
           ) : (
             <>
-              <Nav.Link as={Link} to="/home">Trang chủ</Nav.Link>
-              <Button variant="outline-light" onClick={handleLogout}>Đăng xuất</Button>
+              <Nav.Link as={Link} to="/login" className="nav-link">Đăng nhập</Nav.Link>
+              <Nav.Link as={Link} to="/register" className="nav-link">Đăng ký</Nav.Link>
             </>
           )}
         </Nav>
-      </Container>
+      </div>
     </Navbar>
   );
 }

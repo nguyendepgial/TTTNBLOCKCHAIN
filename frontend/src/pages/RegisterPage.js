@@ -12,6 +12,7 @@ function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(""); // Thêm message cho thông báo thành công
 
   const handleChange = (e) => {
     setFormData({
@@ -24,6 +25,7 @@ function RegisterPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setMessage(""); // Reset message
 
     try {
       const response = await fetch("http://localhost:5000/api/users/register", {
@@ -37,7 +39,10 @@ function RegisterPage() {
       const data = await response.json();
 
       if (data.success) {
-        navigate("/login");
+        setMessage("Đăng ký thành công!"); // Thông báo thành công
+        setTimeout(() => {
+          navigate("/login");
+        }, 1000); // Sau 1s sẽ chuyển sang trang đăng nhập
       } else {
         setError(data.message);
       }
@@ -51,11 +56,12 @@ function RegisterPage() {
   return (
     <Container fluid className="d-flex justify-content-center align-items-center" style={{ minHeight: "100vh" }}>
       <Row className="w-100">
-        <Col sm={6} md={4}>
+        <Col sm={6} md={4} className="mx-auto">
           <Card className="p-4">
             <Card.Body>
               <h3 className="text-center">Đăng ký tài khoản</h3>
               {error && <Alert variant="danger">{error}</Alert>}
+              {message && <Alert variant="success">{message}</Alert>} {/* Hiển thị thông báo thành công */}
               <Form onSubmit={handleRegister}>
                 <Form.Group className="mb-3">
                   <Form.Label>Họ và tên</Form.Label>

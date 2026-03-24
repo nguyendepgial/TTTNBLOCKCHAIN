@@ -1,24 +1,57 @@
-/* Navbar chung */
-.navbar {
-  background-color: var(--primary-color);
-  color: #fff;
-  padding: 15px;
-}
+  /* Navbar chung */
+  .navbar {
+    background-color: var(--primary-color); /* Màu nền của navbar */
+    color: #fff;
+    padding: 15px 20px; /* Điều chỉnh padding để navbar có độ cao vừa phải */
+    width: 100%; /* Đảm bảo navbar tràn hết chiều rộng màn hình */
+    position: fixed; /* Để navbar cố định ở đầu trang */
+    top: 0;
+    left: 0;
+    z-index: 9999; /* Để navbar luôn ở trên */
+    display: flex; /* Sử dụng flexbox để các phần tử nằm ngang */
+    justify-content: space-between; /* Phân chia các phần tử có khoảng cách đều */
+    align-items: center; /* Căn giữa các phần tử theo chiều dọc */
+  }
 
-.navbar .navbar-brand {
-  font-size: 1.8rem;
-  font-weight: bold;
-}
+  .navbar .navbar-brand {
+    font-size: 1.8rem;
+    font-weight: bold;
+  }
 
-.navbar .nav-item {
-  margin-left: 20px;
-}
+  /* Các mục trong navbar */
+  .navbar .navbar-nav {
+    display: flex; /* Đảm bảo các mục nav nằm ngang */
+    margin-left: auto; /* Đảm bảo các mục navbar căn phải */
+  }
 
-.navbar .nav-link {
-  color: #fff;
-  font-size: 1rem;
-}
+  .navbar .nav-item {
+    margin-left: 20px; /* Khoảng cách giữa các mục */
+  }
 
-.navbar .nav-link:hover {
-  color: #ddd;
-}
+  .navbar .nav-link {
+    color: #fff; /* Màu chữ của các liên kết */
+    font-size: 1rem;
+    text-decoration: none; /* Loại bỏ gạch dưới cho các liên kết */
+  }
+
+  .navbar .nav-link:hover {
+    color: #ddd; /* Màu khi hover vào các liên kết */
+  }
+
+  /* Thêm hiệu ứng hover cho navbar khi cuộn trang */
+  .navbar.fixed-top {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Thêm bóng đổ cho navbar khi cố định */
+  }
+
+  /* Navbar khi màn hình nhỏ hơn */
+  @media (max-width: 768px) {
+    .navbar .navbar-nav {
+      display: block; /* Chuyển các mục navbar thành dạng dọc trên màn hình nhỏ */
+      margin-left: 0;
+    }
+
+    .navbar .nav-item {
+      margin-left: 0;
+      margin-bottom: 10px; /* Khoảng cách giữa các mục khi navbar nằm dọc */
+    }
+  }

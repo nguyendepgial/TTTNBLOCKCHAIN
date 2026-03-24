@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "bootstrap/dist/css/bootstrap.min.css";
+import "bootstrap/dist/css/bootstrap.min.css"; // Thêm Bootstrap
 import "./styles/main.css"; // Thêm style chính
 import App from "./App";
 
