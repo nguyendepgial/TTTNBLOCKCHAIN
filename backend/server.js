@@ -1,80 +1,105 @@
-require('dotenv').config();  // Đọc các biến môi trường từ file .env
-const express = require('express');  // Thư viện Express
-const cors = require('cors');  // Thư viện CORS cho phép giao tiếp giữa các domain
-const bodyParser = require('body-parser');  // Thư viện để phân tích dữ liệu POST
-const pool = require('./config/database');  // Kết nối cơ sở dữ liệu
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const pool = require('./config/database');
 
 // Import routes
-const userRoutes = require('./routes/user/userRoutes');  // Routes dành cho người dùng
-const adminRoutes = require('./routes/admin/eventRoutes');  // Routes dành cho admin (quản lý sự kiện)
-const eventRoutes = require('./routes/admin/eventRoutes');  // Routes public cho /api/events
-
-// Import middlewares
-const { verifyToken, isAdmin } = require('./middlewares/auth');  // Middleware xác thực và quyền admin
+const userRoutes = require('./routes/user/userRoutes');          // đăng ký, đăng nhập
+const userTicketRoutes = require('./routes/user/ticketRoutes');  // vé của tôi, lịch sử, chuyển nhượng
+const userOrderRoutes = require('./routes/user/orderRoutes');    // đặt vé, lịch sử đơn hàng
+const paymentRoutes = require('./routes/user/paymentRoutes');    // thanh toán, hoàn tiền
+const checkinRoutes = require('./routes/user/checkinRoutes');    // check-in vé
+const eventRoutes = require('./routes/admin/eventRoutes');       // public + admin event routes
+const adminTicketRoutes = require('./routes/admin/ticketRoutes'); // admin ticket management
+const ticketTypeRoutes = require('./routes/admin/ticketTypeRoutes'); // quản lý loại vé
 
 const app = express();
 
-// Cấu hình middleware CORS
+// Cấu hình CORS
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',  // Địa chỉ frontend được phép truy cập
-  credentials: true,  // Cho phép cookie hoặc header bảo mật
-  optionsSuccessStatus: 200,  // Để hỗ trợ HTTP/2 response cho một số trình duyệt cũ
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  credentials: true,
+  optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
 
-// Middleware phân tích dữ liệu JSON và URL-encoded
-app.use(bodyParser.json());  // Để phân tích dữ liệu JSON
-app.use(bodyParser.urlencoded({ extended: true }));  // Để phân tích URL-encoded data
+// Parse request body
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// Sử dụng route của người dùng và admin
-app.use('/api/users', userRoutes);  // Các route dành cho người dùng
-app.use('/api/admin', verifyToken, isAdmin, adminRoutes);  // Các route admin cần bảo mật
+// =========================
+// ROUTES
+// =========================
 
-// Route public cho sự kiện (xem danh sách hoặc chi tiết sự kiện)
+// User auth
+app.use('/api/users', userRoutes);
+
+// User ticket routes
+app.use('/api/users/tickets', userTicketRoutes);
+
+// User order routes (đặt vé, quản lý đơn hàng)
+app.use('/api/users/orders', userOrderRoutes);
+
+// Payment routes
+app.use('/api/payments', paymentRoutes);
+
+// Check-in routes
+app.use('/api/checkins', checkinRoutes);
+
+// Event routes
+// Lưu ý: file eventRoutes nên tự gắn middleware verifyToken/isAdmin
+// cho các route admin như POST/PUT/DELETE bên trong file route
 app.use('/api/events', eventRoutes);
 
-// API kiểm tra tình trạng server và kết nối cơ sở dữ liệu
+// Admin ticket management
+app.use('/api/admin/tickets', adminTicketRoutes);
+
+// Admin ticket type management
+app.use('/api/admin/ticket-types', ticketTypeRoutes);
+
+// Health check
 app.get('/api/health', async (req, res) => {
   try {
-    const connection = await pool.getConnection();  // Kiểm tra kết nối cơ sở dữ liệu
-    connection.release();  // Thả kết nối về pool
+    const connection = await pool.getConnection();
+    connection.release();
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      message: 'Backend is running',  // Trả về trạng thái server hoạt động
-      database: 'Connected',  // Trả về thông tin kết nối cơ sở dữ liệu
-      port: process.env.PORT || 5000  // Trả về cổng đang chạy của server
+      message: 'Backend is running',
+      database: 'Connected',
+      port: process.env.PORT || 5000
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: 'Database connection failed',  // Thông báo lỗi nếu không kết nối được database
-      error: error.message  // Lỗi chi tiết
+      message: 'Database connection failed',
+      error: error.message
     });
   }
 });
 
-// API không tìm thấy route
+// 404 handler
 app.use((req, res) => {
-  res.status(404).json({
+  return res.status(404).json({
     success: false,
-    message: 'Route not found'  // Thông báo lỗi nếu không tìm thấy route
+    message: 'Route not found'
   });
 });
 
-// Xử lý lỗi bất kỳ không mong muốn
+// Error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);  // Log lỗi cho developer
-  res.status(500).json({
+  console.error('Server error:', err.stack);
+  return res.status(500).json({
     success: false,
     message: 'Internal Server Error',
     error: err.message
   });
 });
 
-// Lắng nghe và chạy server
-const PORT = process.env.PORT || 5000;  // Lấy cổng từ biến môi trường hoặc mặc định là 5000
+// Start server
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);  // Thông báo server đã chạy thành công
+  console.log(`Server is running on port ${PORT}`);
 });

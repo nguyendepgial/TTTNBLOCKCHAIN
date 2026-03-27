@@ -26,6 +26,78 @@ exports.getEventById = (req, res) => {
   });
 };
 
+// API lấy chi tiết sự kiện kèm thông tin loại vé (dành cho booking)
+exports.getEventWithTickets = async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Lấy thông tin sự kiện
+    const eventQuery = 'SELECT * FROM events WHERE id = ?';
+    const [events] = await db.query(eventQuery, [id]);
+
+    if (events.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sự kiện không tìm thấy'
+      });
+    }
+
+    const event = events[0];
+
+    // Lấy thông tin loại vé
+    const ticketTypesQuery = `
+      SELECT 
+        id,
+        name,
+        description,
+        price,
+        quantity_total,
+        quantity_sold,
+        max_per_order,
+        transferable,
+        sale_start,
+        sale_end,
+        status,
+        (quantity_total - quantity_sold) as available
+      FROM ticket_types
+      WHERE event_id = ? AND status = 'active'
+      ORDER BY price ASC
+    `;
+
+    const [ticketTypes] = await db.query(ticketTypesQuery, [id]);
+
+    // Tính tổng số vé còn lại
+    let totalAvailable = 0;
+    let totalSold = 0;
+    ticketTypes.forEach(tt => {
+      totalAvailable += (tt.quantity_total - tt.quantity_sold);
+      totalSold += tt.quantity_sold;
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy chi tiết sự kiện thành công',
+      data: {
+        event,
+        ticketTypes,
+        summary: {
+          totalTicketsAvailable: totalAvailable,
+          totalTicketsSold: totalSold,
+          totalTicketsCapacity: ticketTypes.reduce((sum, tt) => sum + tt.quantity_total, 0),
+          hasAvailableTickets: totalAvailable > 0
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching event with tickets:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy chi tiết sự kiện',
+      error: err.message
+    });
+  }
+};
+
 exports.createEvent = async (req, res) => {
   const { title, description, location, event_date, checkin_start_time, checkin_end_time, banner_image } = req.body;
   const slug = title ? title.toLowerCase().replace(/\s+/g, '-') : 'default-slug';  // Tạo slug từ title
