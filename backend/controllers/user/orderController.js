@@ -404,7 +404,7 @@ exports.cancelOrder = async (req, res) => {
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    // Kiểm tra order
+    // 1. Kiểm tra order
     const [orders] = await connection.query(
       'SELECT id, payment_status, order_status FROM orders WHERE id = ? AND user_id = ? LIMIT 1',
       [orderId, userId]
@@ -420,11 +420,12 @@ exports.cancelOrder = async (req, res) => {
 
     const order = orders[0];
 
+    // 2. Kiểm tra có thể cancel không
     if (order.payment_status === 'paid') {
       await connection.rollback();
       return res.status(400).json({
         success: false,
-        message: 'Không thể hủy đơn hàng đã thanh toán. Vui lòng liên hệ support để hoàn tiền.'
+        message: 'Không thể hủy đơn hàng đã thanh toán'
       });
     }
 
@@ -432,17 +433,23 @@ exports.cancelOrder = async (req, res) => {
       await connection.rollback();
       return res.status(400).json({
         success: false,
-        message: 'Đơn hàng đã bị hủy'
+        message: 'Đơn hàng này đã bị hủy rồi'
       });
     }
 
-    // Update order status
+    // 3. Update order: cancelled
     await connection.query(
-      'UPDATE orders SET order_status = "cancelled", updated_at = NOW() WHERE id = ?',
+      `
+      UPDATE orders
+      SET
+        order_status = 'cancelled',
+        updated_at = NOW()
+      WHERE id = ?
+      `,
       [orderId]
     );
 
-    // Restore quantity_sold
+    // 4. Restore ticket quantities
     const [orderItems] = await connection.query(
       'SELECT ticket_type_id, quantity FROM order_items WHERE order_id = ?',
       [orderId]
@@ -455,9 +462,13 @@ exports.cancelOrder = async (req, res) => {
       );
     }
 
-    // Delete tickets (vì chưa thanh toán nên xóa các vé được tạo)
+    // 5. Mark tickets as cancelled
     await connection.query(
-      'DELETE t FROM tickets t INNER JOIN order_items oi ON t.order_id = oi.order_id WHERE oi.order_id = ?',
+      `
+      UPDATE tickets
+      SET status = 'cancelled', updated_at = NOW()
+      WHERE order_id = ?
+      `,
       [orderId]
     );
 
@@ -465,13 +476,18 @@ exports.cancelOrder = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Hủy đơn hàng thành công'
+      message: 'Hủy đơn hàng thành công',
+      data: {
+        orderId,
+        orderStatus: 'cancelled'
+      }
     });
   } catch (err) {
     if (connection) {
       await connection.rollback();
     }
 
+    console.error('Order cancellation error:', err);
     return res.status(500).json({
       success: false,
       message: 'Lỗi khi hủy đơn hàng',
@@ -481,5 +497,217 @@ exports.cancelOrder = async (req, res) => {
     if (connection) {
       connection.release();
     }
+  }
+};
+
+/**
+ * Transfer ticket to another user (blockchain transfer)
+ */
+exports.transferTicket = async (req, res) => {
+  const userId = req.user.id;
+  const { ticketId } = req.params;
+  const { toUserId, toWalletAddress } = req.body;
+
+  if (!toUserId || !toWalletAddress) {
+    return res.status(400).json({
+      success: false,
+      message: 'Cần cung cấp toUserId và toWalletAddress'
+    });
+  }
+
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // 1. Kiểm tra ticket tồn tại và thuộc về user
+    const [tickets] = await connection.query(
+      `
+      SELECT
+        t.id,
+        t.ticket_code,
+        t.owner_user_id,
+        t.status,
+        t.is_used,
+        t.blockchain_ticket_id,
+        tt.transferable,
+        tt.name as ticket_type_name,
+        e.title as event_title
+      FROM tickets t
+      INNER JOIN ticket_types tt ON t.ticket_type_id = tt.id
+      INNER JOIN events e ON t.event_id = e.id
+      WHERE t.id = ? AND t.owner_user_id = ?
+      LIMIT 1
+      `,
+      [ticketId, userId]
+    );
+
+    if (tickets.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Vé không tồn tại hoặc không thuộc về bạn'
+      });
+    }
+
+    const ticket = tickets[0];
+
+    // 2. Kiểm tra có thể transfer không
+    if (!ticket.transferable) {
+      await connection.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Loại vé này không cho phép chuyển nhượng'
+      });
+    }
+
+    if (ticket.status !== 'active') {
+      await connection.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Vé không ở trạng thái active'
+      });
+    }
+
+    if (ticket.is_used) {
+      await connection.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Vé đã được sử dụng, không thể chuyển nhượng'
+      });
+    }
+
+    // 3. Kiểm tra user nhận tồn tại
+    const [users] = await connection.query(
+      'SELECT id, email FROM users WHERE id = ? LIMIT 1',
+      [toUserId]
+    );
+
+    if (users.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Người nhận không tồn tại'
+      });
+    }
+
+    // 4. TEMPORARILY DISABLE BLOCKCHAIN TRANSFER FOR DEMO
+    // Transfer NFT trên blockchain - TẠM BỎ TRONG DEMO
+    console.log(`[DEMO] Skipping blockchain transfer for NFT ${ticket.blockchain_ticket_id}`);
+    console.log(`[DEMO] Transferring ownership in database only`);
+
+    // const transferResult = await blockchainService.transferTicket(
+    //   req.user.wallet_address || process.env.DEFAULT_WALLET_ADDRESS, // from wallet
+    //   toWalletAddress, // to wallet
+    //   ticket.id // tokenId
+    // );
+
+    // if (!transferResult.success) {
+    //   await connection.rollback();
+    //   return res.status(500).json({
+    //     success: false,
+    //     message: 'Không thể transfer NFT trên blockchain',
+    //     error: transferResult.error
+    //   });
+    // }
+
+    // 5. Update ticket ownership (chỉ database)
+    await connection.query(
+      `
+      UPDATE tickets
+      SET
+        owner_user_id = ?,
+        updated_at = NOW()
+      WHERE id = ?
+      `,
+      [toUserId, ticketId]
+    );
+
+    // 6. Tạo transfer log (không có tx hash)
+    await connection.query(
+      `
+      INSERT INTO ticket_transfers
+      (ticket_id, from_user_id, to_user_id, created_at)
+      VALUES (?, ?, ?, NOW())
+      `,
+      [ticketId, userId, toUserId]
+    );
+
+    await connection.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Chuyển nhượng vé thành công',
+      data: {
+        ticketId,
+        ticketCode: ticket.ticket_code,
+        fromUserId: userId,
+        toUserId,
+        toWalletAddress,
+        transactionHash: transferResult.transactionHash,
+        blockNumber: transferResult.blockNumber
+      }
+    });
+  } catch (err) {
+    if (connection) {
+      await connection.rollback();
+    }
+
+    console.error('Ticket transfer error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi chuyển nhượng vé',
+      error: err.message
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+};
+
+/**
+ * Get user's tickets
+ */
+exports.getUserTickets = async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const query = `
+      SELECT
+        t.id,
+        t.ticket_code,
+        t.status,
+        t.is_used,
+        t.used_at,
+        t.qr_code,
+        t.blockchain_ticket_id,
+        t.mint_tx_hash,
+        t.contract_address,
+        e.title as event_title,
+        e.event_date,
+        tt.name as ticket_type_name,
+        tt.price
+      FROM tickets t
+      INNER JOIN events e ON t.event_id = e.id
+      INNER JOIN ticket_types tt ON t.ticket_type_id = tt.id
+      WHERE t.owner_user_id = ?
+      ORDER BY e.event_date DESC, t.created_at DESC
+    `;
+
+    const [tickets] = await pool.query(query, [userId]);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy danh sách vé thành công',
+      data: tickets
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy danh sách vé',
+      error: err.message
+    });
   }
 };

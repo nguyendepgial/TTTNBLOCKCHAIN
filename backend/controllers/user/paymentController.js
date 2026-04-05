@@ -1,17 +1,93 @@
 const pool = require('../../config/database');
+const paymentService = require('../../services/paymentService');
+const blockchainService = require('../../services/blockchainService');
 
 /**
- * Mock Payment - không xử lý tiền thật
- * Chỉ update order payment_status từ pending → paid
+ * Tạo Payment Intent cho Stripe
+ */
+exports.createPaymentIntent = async (req, res) => {
+  const userId = req.user.id;
+  const { orderId } = req.body;
+
+  if (!orderId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Cần cung cấp orderId'
+    });
+  }
+
+  try {
+    // Kiểm tra order
+    const [orders] = await pool.query(
+      'SELECT id, payment_status, total_amount FROM orders WHERE id = ? AND user_id = ? LIMIT 1',
+      [orderId, userId]
+    );
+
+    if (orders.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Đơn hàng không tồn tại'
+      });
+    }
+
+    const order = orders[0];
+
+    if (order.payment_status === 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'Đơn hàng này đã thanh toán rồi'
+      });
+    }
+
+    // Tạo payment intent
+    const paymentResult = await paymentService.createPaymentIntent({
+      amount: order.total_amount,
+      orderId: order.id,
+      userId: userId,
+      metadata: {
+        type: 'ticket_purchase'
+      }
+    });
+
+    if (!paymentResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Không thể tạo payment intent',
+        error: paymentResult.error
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment intent tạo thành công',
+      data: {
+        clientSecret: paymentResult.clientSecret,
+        paymentIntentId: paymentResult.paymentIntentId,
+        amount: paymentResult.amount,
+        currency: paymentResult.currency
+      }
+    });
+  } catch (err) {
+    console.error('Error creating payment intent:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi tạo payment intent',
+      error: err.message
+    });
+  }
+};
+
+/**
+ * Xử lý thanh toán với blockchain integration
  */
 exports.processPayment = async (req, res) => {
   const userId = req.user.id;
-  const { orderId, paymentMethod } = req.body;
+  const { orderId, paymentIntentId, walletAddress } = req.body;
 
-  if (!orderId || !paymentMethod) {
+  if (!orderId || !paymentIntentId || !walletAddress) {
     return res.status(400).json({
       success: false,
-      message: 'Cần cung cấp orderId và paymentMethod'
+      message: 'Cần cung cấp orderId, paymentIntentId và walletAddress'
     });
   }
 
@@ -21,7 +97,7 @@ exports.processPayment = async (req, res) => {
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    // 1. Kiểm tra order tồn tại và thuộc về user
+    // 1. Kiểm tra order
     const [orders] = await connection.query(
       'SELECT id, payment_status, order_status, total_amount FROM orders WHERE id = ? AND user_id = ? LIMIT 1',
       [orderId, userId]
@@ -37,7 +113,6 @@ exports.processPayment = async (req, res) => {
 
     const order = orders[0];
 
-    // 2. Kiểm tra order status
     if (order.payment_status === 'paid') {
       await connection.rollback();
       return res.status(400).json({
@@ -46,86 +121,133 @@ exports.processPayment = async (req, res) => {
       });
     }
 
-    if (order.order_status === 'cancelled') {
+    // 2. Kiểm tra payment status từ Stripe
+    const paymentStatus = await paymentService.getPaymentStatus(paymentIntentId);
+    if (!paymentStatus.success || paymentStatus.status !== 'succeeded') {
       await connection.rollback();
       return res.status(400).json({
         success: false,
-        message: 'Đơn hàng này đã bị hủy'
+        message: 'Thanh toán chưa thành công',
+        paymentStatus: paymentStatus.status
       });
     }
 
-    // 3. MOCK PAYMENT: Giả lập thanh toán thành công (90% success rate)
-    const isPaymentSuccess = Math.random() < 0.9;
-
-    if (!isPaymentSuccess) {
-      await connection.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Thanh toán thất bại (simulated failure)'
-      });
-    }
-
-    // 4. Generate mock payment reference
-    const paymentReference = `PAY${Date.now()}${Math.random().toString(36).substr(2, 9)}`;
-
-    // 5. Update order: payment successful
-    await connection.query(
-      `
-      UPDATE orders
-      SET 
-        payment_status = 'paid',
-        order_status = 'confirmed',
-        payment_method = ?,
-        payment_reference = ?,
-        updated_at = NOW()
-      WHERE id = ?
-      `,
-      [paymentMethod, paymentReference, orderId]
-    );
-
-    // 6. Generate mock blockchain ticket IDs
-    // In real scenario, này sẽ triệu gọi blockchain API để mint NFT
+    // 3. Lấy danh sách tickets
     const [tickets] = await connection.query(
       `
-      SELECT t.id FROM tickets t
+      SELECT t.id, t.ticket_code FROM tickets t
       INNER JOIN order_items oi ON t.order_id = oi.order_id
       WHERE oi.order_id = ?
       `,
       [orderId]
     );
 
-    // Update tickets with mock blockchain fields
-    for (const ticket of tickets) {
-      const mockBlockchainId = `0x${Math.random().toString(16).substr(2, 40)}`;
-      const mockMintHash = `0x${Math.random().toString(16).substr(2, 64)}`;
+    // 4. Mint NFTs trên blockchain - ALL OR NOTHING APPROACH
+    console.log(`Minting ${tickets.length} NFTs for order ${orderId}`);
 
+    const blockchainResults = [];
+
+    // PHASE 1: Mint tất cả NFTs trước
+    for (const ticket of tickets) {
+      const metadataURI = `${process.env.BASE_URL || 'https://api.concerttickets.com'}/metadata/${ticket.ticket_code}`;
+
+      const mintResult = await blockchainService.mintTicket(
+        walletAddress,
+        ticket.id,
+        metadataURI
+      );
+
+      blockchainResults.push({
+        ticketId: ticket.id,
+        ticketCode: ticket.ticket_code,
+        blockchainResult: mintResult
+      });
+
+      // Nếu có 1 vé mint fail → ROLLBACK TOÀN BỘ
+      if (!mintResult.success) {
+        console.error(`Failed to mint NFT for ticket ${ticket.id}: ${mintResult.error}`);
+
+        // 🚨 ROLLBACK: Refund payment
+        try {
+          await stripe.refunds.create({
+            payment_intent: paymentIntentId,
+            reason: 'requested_by_customer'
+          });
+          console.log(`Payment refunded for order ${orderId}`);
+        } catch (refundError) {
+          console.error('Failed to refund payment:', refundError);
+        }
+
+        await connection.rollback();
+        return res.status(500).json({
+          success: false,
+          message: 'Blockchain minting failed - payment has been refunded',
+          error: mintResult.error,
+          failedTicket: ticket.ticket_code
+        });
+      }
+    }
+
+    // PHASE 2: Chỉ khi TẤT CẢ mint thành công thì mới update DB
+    console.log('All NFTs minted successfully, updating database...');
+
+    for (const result of blockchainResults) {
       await connection.query(
         `
         UPDATE tickets
-        SET 
+        SET
           blockchain_ticket_id = ?,
           mint_tx_hash = ?,
-          contract_address = '0x742d35Cc6634C0532925a3b844Bc9e7595f42bE',
+          contract_address = ?,
+          status = 'active',
           updated_at = NOW()
         WHERE id = ?
         `,
-        [mockBlockchainId, mockMintHash, ticket.id]
+        [
+          result.ticketId.toString(), // tokenId
+          result.blockchainResult.transactionHash,
+          process.env.CONTRACT_ADDRESS,
+          result.ticketId
+        ]
       );
     }
 
+    // 5. Update order status
+    await connection.query(
+      `
+      UPDATE orders
+      SET
+        payment_status = 'paid',
+        order_status = 'confirmed',
+        payment_method = 'stripe',
+        payment_reference = ?,
+        updated_at = NOW()
+      WHERE id = ?
+      `,
+      [paymentIntentId, orderId]
+    );
+
     await connection.commit();
+
+    const successfulMints = blockchainResults.filter(r => r.blockchainResult.success).length;
 
     return res.status(200).json({
       success: true,
-      message: 'Thanh toán thành công (Mock)',
+      message: 'Thanh toán và mint NFT thành công',
       data: {
         orderId,
         paymentStatus: 'paid',
-        paymentReference,
-        totalAmount: order.total_amount,
-        paymentMethod,
-        ticketsMinted: tickets.length,
-        note: 'This is a mock payment. In production, integrate with real payment gateway.'
+        paymentIntentId,
+        walletAddress,
+        totalTickets: tickets.length,
+        successfulMints,
+        failedMints: tickets.length - successfulMints,
+        blockchainResults: blockchainResults.map(r => ({
+          ticketCode: r.ticketCode,
+          success: r.blockchainResult.success,
+          transactionHash: r.blockchainResult.transactionHash,
+          error: r.blockchainResult.error
+        }))
       }
     });
   } catch (err) {
@@ -156,7 +278,7 @@ exports.getPaymentStatus = async (req, res) => {
   try {
     const [orders] = await pool.query(
       `
-      SELECT 
+      SELECT
         id,
         order_code,
         payment_status,
@@ -194,12 +316,12 @@ exports.getPaymentStatus = async (req, res) => {
 };
 
 /**
- * Hoàn tiền (Mock - chỉ update status)
+ * Hoàn tiền với blockchain burn
  */
 exports.refundPayment = async (req, res) => {
   const userId = req.user.id;
   const { orderId } = req.params;
-  const { reason } = req.body;
+  const { reason, walletAddress } = req.body;
 
   let connection;
 
@@ -209,7 +331,7 @@ exports.refundPayment = async (req, res) => {
 
     // 1. Kiểm tra order
     const [orders] = await connection.query(
-      'SELECT id, payment_status, order_status FROM orders WHERE id = ? AND user_id = ? LIMIT 1',
+      'SELECT id, payment_status, order_status, payment_reference FROM orders WHERE id = ? AND user_id = ? LIMIT 1',
       [orderId, userId]
     );
 
@@ -240,11 +362,47 @@ exports.refundPayment = async (req, res) => {
       });
     }
 
-    // 3. Update order: refunded
+    // 3. Process Stripe refund
+    const refundResult = await paymentService.refundPayment(order.payment_reference);
+    if (!refundResult.success) {
+      await connection.rollback();
+      return res.status(500).json({
+        success: false,
+        message: 'Không thể hoàn tiền từ Stripe',
+        error: refundResult.error
+      });
+    }
+
+    // 4. TEMPORARILY DISABLE BURN ON BLOCKCHAIN FOR DEMO
+    // Burn NFTs on blockchain - TẠM BỎ TRONG DEMO
+    console.log(`[DEMO] Skipping blockchain burn for refund - only database update`);
+
+    // if (walletAddress) {
+    //   const [tickets] = await connection.query(
+    //     'SELECT id, blockchain_ticket_id FROM tickets WHERE order_id = ?',
+    //     [orderId]
+    //   );
+
+    //   for (const ticket of tickets) {
+    //     if (ticket.blockchain_ticket_id) {
+    //       const burnResult = await blockchainService.transferTicket(
+    //         walletAddress,
+    //         '0x000000000000000000000000000000000000dEaD', // burn address
+    //         ticket.id
+    //       );
+
+    //       if (!burnResult.success) {
+    //         console.error(`Failed to burn NFT for ticket ${ticket.id}`);
+    //       }
+    //     }
+    //   }
+    // }
+
+    // 5. Update order: refunded (chỉ database)
     await connection.query(
       `
       UPDATE orders
-      SET 
+      SET
         payment_status = 'refunded',
         order_status = 'cancelled',
         notes = ?,
@@ -254,7 +412,7 @@ exports.refundPayment = async (req, res) => {
       [reason || 'User requested refund', orderId]
     );
 
-    // 4. Restore ticket quantities
+    // 6. Restore ticket quantities
     const [orderItems] = await connection.query(
       'SELECT ticket_type_id, quantity FROM order_items WHERE order_id = ?',
       [orderId]
@@ -267,7 +425,7 @@ exports.refundPayment = async (req, res) => {
       );
     }
 
-    // 5. Mark tickets as invalid
+    // 7. Mark tickets as cancelled
     await connection.query(
       `
       UPDATE tickets
@@ -285,6 +443,8 @@ exports.refundPayment = async (req, res) => {
       data: {
         orderId,
         paymentStatus: 'refunded',
+        refundId: refundResult.refundId,
+        amount: refundResult.amount,
         reason: reason || 'User requested refund'
       }
     });
@@ -293,6 +453,7 @@ exports.refundPayment = async (req, res) => {
       await connection.rollback();
     }
 
+    console.error('Refund processing error:', err);
     return res.status(500).json({
       success: false,
       message: 'Lỗi khi hoàn tiền',
@@ -302,5 +463,36 @@ exports.refundPayment = async (req, res) => {
     if (connection) {
       connection.release();
     }
+  }
+};
+
+/**
+ * Webhook handler for Stripe events
+ */
+exports.handleWebhook = async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+
+  try {
+    const webhookResult = await paymentService.handleWebhook(req.rawBody, sig);
+
+    if (!webhookResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Webhook processing failed',
+        error: webhookResult.error
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Webhook processed successfully',
+      eventType: webhookResult.eventType
+    });
+  } catch (err) {
+    console.error('Webhook error:', err);
+    return res.status(400).json({
+      success: false,
+      message: 'Webhook signature verification failed'
+    });
   }
 };

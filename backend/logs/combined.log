@@ -1,0 +1,14 @@
+{"level":"info","message":"POST /api/users/register 409 - 34ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:29:15.161Z"}
+{"level":"info","message":"POST /api/users/register 201 - 87ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:29:20.432Z"}
+{"level":"info","message":"POST /api/users/login 200 - 104ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:29:35.640Z"}
+{"level":"info","message":"POST /api/users/orders/create 400 - 9ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:35:43.631Z"}
+{"level":"info","message":"POST /api/users/orders/create 201 - 32ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:39:43.899Z"}
+{"level":"info","message":"POST /api/payments/create-intent 200 - 2ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:41:28.139Z"}
+{"level":"info","message":"POST /api/payments/process 500 - 1159ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:42:09.662Z"}
+{"level":"info","message":"POST /api/users/login 200 - 112ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:56:26.520Z"}
+{"level":"info","message":"POST /api/users/orders/create 201 - 61ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:56:48.160Z"}
+{"level":"info","message":"POST /api/payments/create-intent 200 - 3ms","service":"concert-ticket-api","timestamp":"2026-04-05T18:00:33.768Z"}
+{"level":"info","message":"POST /api/payments/process 200 - 7731ms","service":"concert-ticket-api","timestamp":"2026-04-05T18:01:14.574Z"}
+{"level":"info","message":"GET /api/users/orders/tickets 404 - 2ms","service":"concert-ticket-api","timestamp":"2026-04-05T18:02:55.892Z"}
+{"level":"info","message":"GET /api/users/orders/tickets 404 - 1ms","service":"concert-ticket-api","timestamp":"2026-04-05T18:03:10.610Z"}
+{"level":"info","message":"GET /api/users/orders/ 200 - 6ms","service":"concert-ticket-api","timestamp":"2026-04-05T18:08:16.007Z"}

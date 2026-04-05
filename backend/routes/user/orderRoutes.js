@@ -5,7 +5,9 @@ const {
   createOrder,
   getOrderDetail,
   getUserOrders,
-  cancelOrder
+  cancelOrder,
+  transferTicket,
+  getUserTickets
 } = require('../../controllers/user/orderController');
 
 /**
@@ -32,5 +34,18 @@ router.get('/:orderId', verifyToken, getOrderDetail);
  * Hủy đơn hàng (chỉ nếu chưa thanh toán)
  */
 router.post('/:orderId/cancel', verifyToken, cancelOrder);
+
+/**
+ * POST /api/users/tickets/:ticketId/transfer
+ * Chuyển nhượng vé cho user khác
+ * Body: { toUserId, toWalletAddress }
+ */
+router.post('/tickets/:ticketId/transfer', verifyToken, transferTicket);
+
+/**
+ * GET /api/users/tickets
+ * Lấy danh sách vé của user
+ */
+router.get('/tickets', verifyToken, getUserTickets);
 
 module.exports = router;

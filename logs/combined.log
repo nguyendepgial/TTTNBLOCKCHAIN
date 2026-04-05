@@ -1,0 +1,18 @@
+{"code":"ECONNREFUSED","fatal":true,"level":"error","message":"Health check failed:","service":"concert-ticket-api","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1142:49)\n    at afterConnectMultiple (node:net:1723:7)","timestamp":"2026-04-05T15:14:38.461Z"}
+{"level":"info","message":"GET /api/health 500 - 17ms","service":"concert-ticket-api","timestamp":"2026-04-05T15:14:38.465Z"}
+{"code":"ECONNREFUSED","fatal":true,"level":"error","message":"Health check failed:","service":"concert-ticket-api","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1142:49)\n    at afterConnectMultiple (node:net:1723:7)","timestamp":"2026-04-05T15:14:41.618Z"}
+{"level":"info","message":"GET /api/health 500 - 3ms","service":"concert-ticket-api","timestamp":"2026-04-05T15:14:41.619Z"}
+{"code":"ECONNREFUSED","fatal":true,"level":"error","message":"Health check failed:","service":"concert-ticket-api","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1142:49)\n    at afterConnectMultiple (node:net:1723:7)","timestamp":"2026-04-05T16:12:17.315Z"}
+{"level":"info","message":"GET /api/health 500 - 15ms","service":"concert-ticket-api","timestamp":"2026-04-05T16:12:17.318Z"}
+{"level":"warn","message":"404 - GET /favicon.ico","service":"concert-ticket-api","timestamp":"2026-04-05T16:12:17.536Z"}
+{"level":"info","message":"GET /favicon.ico 404 - 2ms","service":"concert-ticket-api","timestamp":"2026-04-05T16:12:17.538Z"}
+{"code":"ECONNREFUSED","fatal":true,"level":"error","message":"Health check failed:","service":"concert-ticket-api","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1142:49)\n    at afterConnectMultiple (node:net:1723:7)","timestamp":"2026-04-05T16:15:50.590Z"}
+{"level":"info","message":"GET /api/health 500 - 4ms","service":"concert-ticket-api","timestamp":"2026-04-05T16:15:50.592Z"}
+{"level":"info","message":"GET /api/health 200 - 22ms","service":"concert-ticket-api","timestamp":"2026-04-05T16:17:08.834Z"}
+{"level":"info","message":"POST /api/users/login 500 - 138ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:11:51.885Z"}
+{"level":"info","message":"POST /api/users/login 500 - 76ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:11:59.053Z"}
+{"level":"info","message":"POST /api/users/login 500 - 77ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:16:50.275Z"}
+{"level":"info","message":"POST /api/users/login 401 - 1ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:16:58.498Z"}
+{"level":"info","message":"POST /api/users/login 500 - 71ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:17:06.793Z"}
+{"level":"info","message":"GET /api/health 304 - 1ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:24:52.389Z"}
+{"level":"info","message":"GET /api/health 304 - 2ms","service":"concert-ticket-api","timestamp":"2026-04-05T17:28:01.833Z"}

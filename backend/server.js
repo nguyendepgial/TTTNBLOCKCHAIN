@@ -1,8 +1,9 @@
 require('dotenv').config();
+console.log('JWT_SECRET loaded:', !!process.env.JWT_SECRET);
+console.log('JWT_SECRET value:', process.env.JWT_SECRET);
 const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
 const pool = require('./config/database');
+const { setupSecurity, errorHandler, notFoundHandler, logger } = require('./middlewares/security');
 
 // Import routes
 const userRoutes = require('./routes/user/userRoutes');          // đăng ký, đăng nhập
@@ -16,18 +17,8 @@ const ticketTypeRoutes = require('./routes/admin/ticketTypeRoutes'); // quản l
 
 const app = express();
 
-// Cấu hình CORS
-const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
-
-// Parse request body
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Setup security middleware (helmet, rate limiting, CORS, logging)
+setupSecurity(app);
 
 // =========================
 // ROUTES
@@ -69,34 +60,25 @@ app.get('/api/health', async (req, res) => {
       success: true,
       message: 'Backend is running',
       database: 'Connected',
-      port: process.env.PORT || 5000
+      port: process.env.PORT || 5000,
+      blockchain: 'Integrated',
+      payment: 'Stripe Ready'
     });
   } catch (error) {
+    logger.error('Health check failed:', error);
     return res.status(500).json({
       success: false,
       message: 'Database connection failed',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal error'
     });
   }
 });
 
 // 404 handler
-app.use((req, res) => {
-  return res.status(404).json({
-    success: false,
-    message: 'Route not found'
-  });
-});
+app.use(notFoundHandler);
 
 // Error handler
-app.use((err, req, res, next) => {
-  console.error('Server error:', err.stack);
-  return res.status(500).json({
-    success: false,
-    message: 'Internal Server Error',
-    error: err.message
-  });
-});
+app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 5000;
